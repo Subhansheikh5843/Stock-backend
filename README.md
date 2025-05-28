@@ -16,14 +16,7 @@ This is a Django-based backend API for managing user accounts, stock data ingest
 
 ---
 
-## Tech Stack
 
-* **Python 3.10**
-* **Django 4.x** + **Django REST Framework**
-* **PostgreSQL**
-* **Docker & Docker Compose**
-
----
 
 
 ## Getting Started
@@ -31,8 +24,8 @@ This is a Django-based backend API for managing user accounts, stock data ingest
 ### Clone Repository
 
 ```bash
-git clone <your-repo-url>
-cd <your-repo-folder>
+git clone https://github.com/Subhansheikh5843/Stock-backend.git
+
 ```
 
 ### Environment Variables
