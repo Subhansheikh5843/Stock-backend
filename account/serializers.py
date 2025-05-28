@@ -2,15 +2,18 @@ from rest_framework import serializers
 from account.models import User
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from .models import *
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-from account.utils import Util
+from decimal import Decimal, ROUND_DOWN
+from django.db.models import Sum
+from rest_framework import serializers
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-  # We are writing this becoz we need confirm password field in our Registratin Request
   password2 = serializers.CharField(style={'input_type':'password'}, write_only=True)
   class Meta:
     model = User
-    fields=['email', 'name', 'password', 'password2', 'tc']
+    fields=['email', 'name', 'password', 'password2', 'tc', 'current_balance']
     extra_kwargs={
       'password':{'write_only':True}
     }
@@ -22,6 +25,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     if password != password2:
       raise serializers.ValidationError("Password and Confirm Password doesn't match")
     return attrs
+  def validate_current_balance(self, value):
+        """
+        Ensure the user’s starting balance is not negative.
+        DRF will call this automatically for the 'current_balance' field.
+        """
+        if value < 0:
+            raise serializers.ValidationError("Balance cannot be negative.")
+        return value
 
   def create(self, validate_data):
     return User.objects.create_user(**validate_data)
@@ -32,76 +43,102 @@ class UserLoginSerializer(serializers.ModelSerializer):
     model = User
     fields = ['email', 'password']
 
-class UserProfileSerializer(serializers.ModelSerializer):
-  class Meta:
-    model = User
-    fields = ['id', 'email', 'name']
 
-class UserChangePasswordSerializer(serializers.Serializer):
-  password = serializers.CharField(max_length=255, style={'input_type':'password'}, write_only=True)
-  password2 = serializers.CharField(max_length=255, style={'input_type':'password'}, write_only=True)
-  class Meta:
-    fields = ['password', 'password2']
+class StockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Stock
+        fields = ['symbol', 'name', 'last_price']
 
-  def validate(self, attrs):
-    password = attrs.get('password')
-    password2 = attrs.get('password2')
-    user = self.context.get('user')
-    if password != password2:
-      raise serializers.ValidationError("Password and Confirm Password doesn't match")
-    user.set_password(password)
-    user.save()
-    return attrs
 
-class SendPasswordResetEmailSerializer(serializers.Serializer):
-  email = serializers.EmailField(max_length=255)
-  class Meta:
-    fields = ['email']
+class TransactionSerializer(serializers.ModelSerializer):
+    stock = serializers.SlugRelatedField(
+        queryset=Stock.objects.all(),
+        slug_field='symbol'
+    )
+    user_balance = serializers.SerializerMethodField()
+    price_each = serializers.DecimalField(max_digits=10, decimal_places=2)
+    total_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
-  def validate(self, attrs):
-    email = attrs.get('email')
-    if User.objects.filter(email=email).exists():
-      user = User.objects.get(email = email)
-      uid = urlsafe_base64_encode(force_bytes(user.id))
-      print('Encoded UID', uid)
-      token = PasswordResetTokenGenerator().make_token(user)
-      print('Password Reset Token', token)
-      link = 'http://localhost:3000/api/user/reset/'+uid+'/'+token
-      print('Password Reset Link', link)
-      # Send EMail
-      body = 'Click Following Link to Reset Your Password '+link
-      data = {
-        'subject':'Reset Your Password',
-        'body':body,
-        'to_email':user.email
-      }
-      # Util.send_email(data)
-      return attrs
-    else:
-      raise serializers.ValidationError('You are not a Registered User')
+    class Meta:
+        model = Transaction
+        fields = [
+            'stock', 'tx_type',
+            'quantity', 'price_each', 'total_price', 'timestamp',
+            'user_balance'
+        ]
+        read_only_fields = ['total_price', 'timestamp', 'user_balance']
 
-class UserPasswordResetSerializer(serializers.Serializer):
-  password = serializers.CharField(max_length=255, style={'input_type':'password'}, write_only=True)
-  password2 = serializers.CharField(max_length=255, style={'input_type':'password'}, write_only=True)
-  class Meta:
-    fields = ['password', 'password2']
+    def get_user_balance(self, obj):
+        return float(obj.user.current_balance) 
+    def get_fields(self):
+        """
+        Dynamically drop `user_balance` on GET requests.
+        """
+        fields = super().get_fields()
+        request = self.context.get('request', None)
+        if request and request.method == 'GET':
+            fields.pop('user_balance', None)
+        return fields
 
-  def validate(self, attrs):
-    try:
-      password = attrs.get('password')
-      password2 = attrs.get('password2')
-      uid = self.context.get('uid')
-      token = self.context.get('token')
-      if password != password2:
-        raise serializers.ValidationError("Password and Confirm Password doesn't match")
-      id = smart_str(urlsafe_base64_decode(uid))
-      user = User.objects.get(id=id)
-      if not PasswordResetTokenGenerator().check_token(user, token):
-        raise serializers.ValidationError('Token is not Valid or Expired')
-      user.set_password(password)
-      user.save()
-      return attrs
-    except DjangoUnicodeDecodeError as identifier:
-      PasswordResetTokenGenerator().check_token(user, token)
-      raise serializers.ValidationError('Token is not Valid or Expired')
-  
+    def validate(self, attrs):
+        user = self.context['request'].user
+        stock = attrs['stock']
+        qty = attrs['quantity']
+        price = attrs['price_each']
+        tx_type = attrs['tx_type']
+        total_cost = price * qty
+
+        if tx_type == Transaction.BUY:
+            if user.current_balance < total_cost:
+                raise serializers.ValidationError("Insufficient balance for this purchase.")
+        elif tx_type == Transaction.SELL:
+           
+            total_bought = Transaction.objects.filter(
+                user=user,
+                stock=stock,
+                tx_type=Transaction.BUY
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+
+      
+            total_sold = Transaction.objects.filter(
+                user=user,
+                stock=stock,
+                tx_type=Transaction.SELL
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+
+
+            available_quantity = total_bought - total_sold
+
+            if qty > available_quantity:
+                raise serializers.ValidationError(
+                    f"You can only sell up to {available_quantity} shares of {stock.symbol}."
+                )
+
+        return attrs
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+
+        total_price = (validated_data['price_each'] * validated_data['quantity']).quantize(
+            Decimal('.01'), rounding=ROUND_DOWN
+        )
+        validated_data['total_price'] = total_price
+
+        tx = Transaction.objects.create(user=user, **validated_data)
+
+        if tx.tx_type == Transaction.BUY:
+            user.current_balance -= tx.total_price
+        else:
+            user.current_balance += tx.total_price
+        user.save(update_fields=['current_balance'])
+
+        return tx
+
+
+
+class TransactionListSerializer(serializers.ModelSerializer):
+    stock = serializers.CharField(source='stock.symbol')
+
+    class Meta:
+        model = Transaction
+        fields = ['stock', 'tx_type', 'quantity', 'price_each', 'total_price', 'timestamp']

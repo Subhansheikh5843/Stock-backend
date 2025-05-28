@@ -1,11 +1,10 @@
 from django.urls import path
-from account.views import SendPasswordResetEmailView, UserChangePasswordView, UserLoginView, UserProfileView, UserRegistrationView, UserPasswordResetView
+from .views import *
 urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
     path('login/', UserLoginView.as_view(), name='login'),
-    path('profile/', UserProfileView.as_view(), name='profile'),
-    path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
-    path('send-reset-password-email/', SendPasswordResetEmailView.as_view(), name='send-reset-password-email'),
-    path('reset-password/<uid>/<token>/', UserPasswordResetView.as_view(), name='reset-password'),
-
+    path('load-stocks/', IngestStocksView.as_view(), name='ingest-stocks'),
+    path('query-stocks/', StockQueryView.as_view(), name='stock-query'),
+    path('transactions/', TransactionView.as_view(), name='transactions'),
+    path('query-transactions/', QueryTransactionListView.as_view(), name='query-transactions'),
 ]
