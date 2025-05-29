@@ -1,24 +1,34 @@
+import logging
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from account.renderers import UserRenderer
 from rest_framework import generics, permissions
-from rest_framework.permissions import IsAuthenticated
-from .models import *
-from django.db import DatabaseError
-from .serializers import *
-from .constants import *
+from django.utils.translation import gettext_lazy as _
+from .constants import HARDCODED_STOCKS
 from rest_framework import status
 from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from rest_framework import generics, permissions
 from datetime import datetime
 from django.utils.dateparse import parse_date
-from .utils import *
-import logging
+from .utils import get_tokens_for_user,IsAdminUserCustom
+from rest_framework.permissions import IsAuthenticated
+from .models import (
+    Stock,
+    Transaction,
+)
+from django.db import DatabaseError
+from .serializers import (
+    UserRegistrationSerializer,
+    UserLoginSerializer,
+    StockSerializer,
+    TransactionSerializer,
+    TransactionListSerializer
+)
+
 
 logger = logging.getLogger(__name__)
-
 
 
 class UserRegistrationView(APIView):
@@ -31,7 +41,7 @@ class UserRegistrationView(APIView):
     Request body:
     - email
     - password
-    - password2
+    - confirm_password
 
     Response:
     - token (JWT access and refresh)
@@ -124,8 +134,6 @@ class UserLoginView(APIView):
                 {'error': 'An unexpected error occurred. Please try again later.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
 
 
 class IngestStocksView(APIView):
@@ -290,7 +298,7 @@ class QueryTransactionListView(generics.ListAPIView):
 
     Available query parameters:
     - stock:        Filter by stock symbol (case-insensitive exact match)
-    - tx_type:      Filter by transaction type ('BUY' or 'SELL')
+    - transaction_type:      Filter by transaction type ('BUY' or 'SELL')
     - date_after:   Filter transactions from this date onward (YYYY-MM-DD)
     - date_before:  Filter transactions up to this date (YYYY-MM-DD)
     - min_price:    Filter transactions where price_each >= min_price
@@ -316,11 +324,11 @@ class QueryTransactionListView(generics.ListAPIView):
                 queryset = queryset.filter(stock__symbol__iexact=stock)
 
             # Filter by transaction type
-            tx_type = query_params.get('tx_type')
-            if tx_type:
-                if tx_type.upper() not in ['BUY', 'SELL']:
-                    raise ValueError("tx_type must be 'BUY' or 'SELL'.")
-                queryset = queryset.filter(tx_type__iexact=tx_type)
+            transaction_type = query_params.get('transaction_type')
+            if transaction_type:
+                if transaction_type.upper() not in ['BUY', 'SELL']:
+                    raise ValueError("transaction_type must be 'BUY' or 'SELL'.")
+                queryset = queryset.filter(transaction_type__iexact=transaction_type)
 
             # Filter by date range
             date_after = query_params.get('date_after')

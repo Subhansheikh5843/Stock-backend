@@ -2,7 +2,11 @@ from rest_framework import serializers
 from account.models import User
 from django.utils.encoding import smart_str, force_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from .models import *
+from .models import (
+    User,
+    Stock,
+    Transaction,
+)
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from decimal import Decimal, ROUND_DOWN
 from django.db.models import Sum
@@ -10,21 +14,21 @@ from rest_framework import serializers
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-  password2 = serializers.CharField(style={'input_type':'password'}, write_only=True)
+  confirm_password = serializers.CharField(style={'input_type':'password'}, write_only=True)
   class Meta:
     model = User
-    fields=['email', 'name', 'password', 'password2', 'tc', 'current_balance']
+    fields=['email', 'name', 'password', 'confirm_password', 'current_balance']
     extra_kwargs={
       'password':{'write_only':True}
     }
 
-  # Validating Password and Confirm Password while Registration
   def validate(self, attrs):
     password = attrs.get('password')
-    password2 = attrs.get('password2')
-    if password != password2:
+    confirm_password = attrs.get('confirm_password')
+    if password != confirm_password:
       raise serializers.ValidationError("Password and Confirm Password doesn't match")
     return attrs
+  
   def validate_current_balance(self, value):
         """
         Ensure the user’s starting balance is not negative.
@@ -37,8 +41,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
   def create(self, validate_data):
     return User.objects.create_user(**validate_data)
 
+
 class UserLoginSerializer(serializers.ModelSerializer):
   email = serializers.EmailField(max_length=255)
+
   class Meta:
     model = User
     fields = ['email', 'password']
@@ -62,7 +68,7 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         fields = [
-            'stock', 'tx_type',
+            'stock', 'transaction_type',
             'quantity', 'price_each', 'total_price', 'timestamp',
             'user_balance'
         ]
@@ -70,6 +76,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def get_user_balance(self, obj):
         return float(obj.user.current_balance) 
+    
     def get_fields(self):
         """
         Dynamically drop `user_balance` on GET requests.
@@ -83,33 +90,33 @@ class TransactionSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
         stock = attrs['stock']
-        qty = attrs['quantity']
+        quantity = attrs['quantity']
         price = attrs['price_each']
-        tx_type = attrs['tx_type']
-        total_cost = price * qty
+        transaction_type = attrs['transaction_type']
+        total_cost = price * quantity
 
-        if tx_type == Transaction.BUY:
+        if transaction_type == Transaction.BUY:
             if user.current_balance < total_cost:
                 raise serializers.ValidationError("Insufficient balance for this purchase.")
-        elif tx_type == Transaction.SELL:
+        elif transaction_type == Transaction.SELL:
            
             total_bought = Transaction.objects.filter(
                 user=user,
                 stock=stock,
-                tx_type=Transaction.BUY
+                transaction_type=Transaction.BUY
             ).aggregate(total=Sum('quantity'))['total'] or 0
 
       
             total_sold = Transaction.objects.filter(
                 user=user,
                 stock=stock,
-                tx_type=Transaction.SELL
+                transaction_type=Transaction.SELL
             ).aggregate(total=Sum('quantity'))['total'] or 0
 
 
             available_quantity = total_bought - total_sold
 
-            if qty > available_quantity:
+            if quantity > available_quantity:
                 raise serializers.ValidationError(
                     f"You can only sell up to {available_quantity} shares of {stock.symbol}."
                 )
@@ -124,16 +131,15 @@ class TransactionSerializer(serializers.ModelSerializer):
         )
         validated_data['total_price'] = total_price
 
-        tx = Transaction.objects.create(user=user, **validated_data)
+        transaction_created = Transaction.objects.create(user=user, **validated_data)
 
-        if tx.tx_type == Transaction.BUY:
-            user.current_balance -= tx.total_price
+        if transaction_created.transaction_type == Transaction.BUY:
+            user.current_balance -= transaction_created.total_price
         else:
-            user.current_balance += tx.total_price
+            user.current_balance += transaction_created.total_price
         user.save(update_fields=['current_balance'])
 
-        return tx
-
+        return transaction_created
 
 
 class TransactionListSerializer(serializers.ModelSerializer):
@@ -141,4 +147,4 @@ class TransactionListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Transaction
-        fields = ['stock', 'tx_type', 'quantity', 'price_each', 'total_price', 'timestamp']
+        fields = ['stock', 'transaction_type', 'quantity', 'price_each', 'total_price', 'timestamp']

@@ -8,7 +8,7 @@ This is a Django-based backend API for managing user accounts, stock data ingest
 ## Features
 
 * **User Registration & Login** via JWT
-* **Admin-only** stock data ingestion from hardcoded constants
+* **Admin-only** stock data ingestion
 * **Stock Querying** with filters and ordering
 * **Transaction Management** (BUY/SELL) with balance updates
 * **Protected Endpoints** with role-based access
@@ -63,7 +63,7 @@ This will:
 To tear down and remove volumes (forcing a fresh Postgres init):
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ---
@@ -76,7 +76,7 @@ All protected endpoints require a Bearer token in the **Authorization** header.
 2. For **admin-only** endpoints (e.g. **ingest-stocks**), you must first create a superuser inside the running container:
 
 ```bash
-   docker-compose exec web sh
+   docker compose exec web sh
    python manage.py createsuperuser
 ```
 
