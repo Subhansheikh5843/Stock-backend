@@ -73,7 +73,7 @@ docker-compose down -v
 All protected endpoints require a Bearer token in the **Authorization** header.
 
 1. **Register** a new user or **login** to receive your **access** and **refresh** tokens.
-2. For **admin-only** endpoints (e.g. **load-stocks**), you must first create a superuser inside the running container:
+2. For **admin-only** endpoints (e.g. **ingest-stocks**), you must first create a superuser inside the running container:
 
 ```bash
    docker-compose exec web sh
@@ -120,7 +120,7 @@ All endpoints are prefixed with `/api/user/` and expect JSON bodies.
 **Ingest Stocks (Admin Only)**
 
 1. In Postman, set **Authorization** to **Bearer Token** and paste your **superuser** `Bearer access_token`.
-2. Create a **GET** request to `http://127.0.0.1:8000/api/user/load-stocks/` and send.       
+2. Create a **GET** request to `http://127.0.0.1:8000/api/user/ingest-stocks/` and send.       
 
 **Query Stocks (User)**
 
@@ -189,6 +189,6 @@ For any protected endpoint, under Postman’s Authorization tab select `Bearer T
 
 Invoke the desired endpoints (/load-stocks, /query-stocks, /transactions, /query-transactions) with the correct token.
 
-For the admin-only `/load-stocks` endpoint, be sure to use the superuser token obtained by creating a superuser inside the container (docker-compose exec web sh → python manage.py createsuperuser).
+For the admin-only `/ingest-stocks` endpoint, be sure to use the superuser token obtained by creating a superuser inside the container (docker-compose exec web sh → python manage.py createsuperuser).
 
 ---
