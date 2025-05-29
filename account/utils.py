@@ -3,6 +3,7 @@ import os
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import BasePermission
 
+
 class IsAdminUserCustom(BasePermission):
     """
     Allows access only to admin users (is_admin=True).

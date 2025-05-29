@@ -107,7 +107,7 @@ __pypackages__/
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
-DjangoAuthAPI.postman_collection.json
+./DjangoAuthAPI.postman_collection.json
 
 # SageMath parsed files
 *.sage.py

@@ -3,6 +3,7 @@ from django.contrib.auth.models import BaseUserManager,AbstractBaseUser
 from django.conf import settings
 from decimal import Decimal, ROUND_DOWN
 
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -16,7 +17,7 @@ class TimeStampedModel(models.Model):
     class Meta:
         abstract = True
         ordering = ['-created_at']  
-        
+
 
 class UserManager(BaseUserManager):
     
@@ -77,10 +78,10 @@ class User(TimeStampedModel,AbstractBaseUser):
 
 
 class Stock(models.Model):
-    symbol      = models.CharField(max_length=10, unique=True)
-    name        = models.CharField(max_length=100)
-    last_price  = models.DecimalField(max_digits=10, decimal_places=2)
-    updated_at  = models.DateTimeField(auto_now=True)
+    symbol = models.CharField(max_length=10, unique=True)
+    name = models.CharField(max_length=100)
+    last_price = models.DecimalField(max_digits=10, decimal_places=2)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.symbol} ({self.last_price})"
@@ -93,13 +94,13 @@ class Transaction(models.Model):
         (BUY, 'Buy'),
         (SELL, 'Sell'),
     ]
-    user        = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    stock       = models.ForeignKey('Stock', on_delete=models.CASCADE)
-    transaction_type     = models.CharField(max_length=4, choices=TYPE_CHOICES)
-    quantity    = models.PositiveIntegerField()
-    price_each  = models.DecimalField(max_digits=10, decimal_places=2)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    stock = models.ForeignKey('Stock', on_delete=models.CASCADE)
+    transaction_type = models.CharField(max_length=4, choices=TYPE_CHOICES)
+    quantity = models.PositiveIntegerField()
+    price_each = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=12, decimal_places=2)
-    timestamp   = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
         if not self.total_price:
