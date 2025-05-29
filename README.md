@@ -33,7 +33,7 @@ git clone https://github.com/Subhansheikh5843/Stock-backend.git
 Copy the example file and adjust values:
 
 ```bash
-cp .envExample .env
+cp .env.example .env
 ```
 
 **.envExample**:
